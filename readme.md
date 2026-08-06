@@ -1,4 +1,4 @@
-# 🛡️ Deepfake Forensic Intelligence Suite v2.0
+# 🛡️ Deepfake analysis system 
 
 An enterprise-grade, multi-modal **Deepfake Forensic Detection & Explainable AI (XAI) Suite** built with Python, PyTorch, Hugging Face Transformers, OpenCV, Torchaudio, and Streamlit.
 
@@ -8,7 +8,7 @@ An enterprise-grade, multi-modal **Deepfake Forensic Detection & Explainable AI 
 
 1. **Clone the Repository**
    ```bash
-   git clone https://github.com/YogeshSharma185/Deepfake-Detection-System.git
+   git clone (https://github.com/mayurOG/DEEPFAKE-ANALYSYS-SYSTEM.git)
    cd Deepfake-Detection-System
    ```
 
