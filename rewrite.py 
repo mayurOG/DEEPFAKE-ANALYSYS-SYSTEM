@@ -1,0 +1,8 @@
+def commit_callback(commit):
+    commit.author_name = b"mayurOG"
+    commit.author_email = b"mhavalde1@gmail.com”
+    commit.committer_name = b"mayurOG"
+    commit.committer_email = b"mnhavalde1@gmail.com”
+
+
+
