@@ -1,4 +1,4 @@
-# 🛡️ Deepfake analysis system 
+# 🛡️ Deepfake Forensic Intelligence Suite
 
 An enterprise-grade, multi-modal **Deepfake Forensic Detection & Explainable AI (XAI) Suite** built with Python, PyTorch, Hugging Face Transformers, OpenCV, Torchaudio, and Streamlit.
 
