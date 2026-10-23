@@ -23,7 +23,15 @@ from detector.report_generator import generate_html_report, generate_json_report
 from utils.ui_components import (
     apply_custom_theme, render_header, render_verdict_card
 )
-from utils.visualizers import generate_ela_image, generate_fft_spectrum
+from utils.visualizers import (
+    generate_ela_image, generate_fft_spectrum,
+    plot_rapsd_curve, plot_rppg_wave, plot_fusion_bar
+)
+from detector.spectral_rapsd import compute_rapsd
+from detector.biometric_rppg import analyze_video_rppg, analyze_static_face_micro_vasculature
+from detector.c2pa_provenance import audit_c2pa_provenance
+from detector.corneal_lighting import analyze_corneal_lighting
+from detector.calibrated_fusion import CalibratedForensicFusion
 
 # Configure Streamlit page
 st.set_page_config(
@@ -65,8 +73,12 @@ st.sidebar.info("""
 - **Vision**: `SiglipForImageClassification`
 - **Faces**: `MTCNN` (FaceNet-PyTorch)
 - **Audio**: `AutoModelForAudioClassification`
-- **Spectral XAI**: ELA & 2D FFT Frequency Spectrum
-- **Noise Forensics**: SRM Residual Filter & Laplacian Blur
+- **SOTA Fourier**: `Azimuthal Radial RAPSD (1/f^α)`
+- **SOTA Biometrics**: `Remote rPPG Cardiac Coherence`
+- **SOTA Optics**: `Bi-Ocular Corneal Specular Geometry`
+- **SOTA Provenance**: `C2PA Content Credentials Auditor`
+- **SOTA Decision**: `Calibrated Multi-Modal Fusion (95% CI)`
+- **Noise Forensics**: `SRM Filter & Laplacian Blur`
 """)
 
 # === MAIN TABS NAVIGATION ===
@@ -221,6 +233,63 @@ with tab_single:
                 ])
                 st.dataframe(meta_df, use_container_width=True)
 
+            # SOTA Forensic Intelligence Suite (RAPSD, Corneal Lighting, C2PA, Calibrated Fusion)
+            with st.expander("🔬 SOTA Forensic Intelligence (RAPSD, Corneal Lighting, C2PA, Calibrated Fusion)", expanded=True):
+                # 1. Calibrated Multi-Modal Fusion
+                fusion_data = raw_details.get("calibrated_fusion")
+                if fusion_data:
+                    st.markdown("#### ⚡ Calibrated Evidence Fusion & Uncertainty Bounds")
+                    f_col1, f_col2, f_col3 = st.columns(3)
+                    f_col1.metric("Calibrated P(Fake)", f"{fusion_data['calibrated_p_fake'] * 100:.1f}%")
+                    f_col2.metric("95% Confidence Interval", f"[{fusion_data['ci_low']:.2f}, {fusion_data['ci_high']:.2f}]")
+                    f_col3.metric("Inter-Expert Contradiction", f"{fusion_data['inter_expert_contradiction']:.2f}")
+
+                    fusion_bar_fig = plot_fusion_bar(fusion_data)
+                    if fusion_bar_fig:
+                        st.plotly_chart(fusion_bar_fig, use_container_width=True)
+
+                sota_col1, sota_col2 = st.columns(2)
+
+                # 2. RAPSD Spectral Profile
+                with sota_col1:
+                    rapsd = raw_details.get("rapsd_metrics")
+                    if rapsd:
+                        st.markdown("#### 📐 Radially Averaged Power Spectrum (RAPSD)")
+                        rapsd_fig = plot_rapsd_curve(rapsd)
+                        st.plotly_chart(rapsd_fig, use_container_width=True)
+                        st.caption(
+                            f"**Spectral Slope (α):** `{rapsd['spectral_slope_alpha']}` | "
+                            f"**High-Freq Anomaly:** `{rapsd['high_freq_anomaly_energy']}` | "
+                            f"**Verdict:** `{rapsd['verdict']}`"
+                        )
+
+                # 3. Corneal Specular Lighting
+                with sota_col2:
+                    corneal = raw_details.get("corneal_metrics")
+                    if corneal and corneal.get("is_valid"):
+                        st.markdown("#### 👁️ Corneal Specular Reflection Consistency")
+                        eye_c1, eye_c2 = st.columns(2)
+                        with eye_c1:
+                            st.image(corneal["left_eye_annotated"], caption="Left Eye Specular Highlight", use_container_width=True)
+                        with eye_c2:
+                            st.image(corneal["right_eye_annotated"], caption="Right Eye Specular Highlight", use_container_width=True)
+                        st.caption(
+                            f"**Lighting Consistency:** `{corneal['consistency_score'] * 100:.1f}%` | "
+                            f"**Vector Disparity:** `{corneal['angle_disparity_deg']}°` | "
+                            f"**Verdict:** `{corneal['verdict']}`"
+                        )
+
+                # 4. C2PA Content Credentials
+                c2pa = raw_details.get("c2pa_provenance")
+                if c2pa:
+                    st.markdown("#### 📜 C2PA Content Credentials & Provenance Manifest")
+                    c_badge = "🟢 SIGNED / PROVENANCE PRESENT" if c2pa["c2pa_manifest_found"] else "⚪ UNSIGNED STANDARD MEDIA"
+                    if c2pa.get("ai_provenance_detected"):
+                        c_badge = "🔴 SYNTHETIC AI PROVENANCE DETECTED"
+                    st.markdown(f"**Provenance Trust Status:** `{c_badge}` — *{c2pa['verdict']}*")
+                    if c2pa.get("ai_generator_clues"):
+                        st.warning(f"🤖 **Generative Model Signatures Detected:** {', '.join(c2pa['ai_generator_clues'])}")
+
     # ------------------ VIDEO SCANNER ------------------
     elif option == "Video (Multimodal)":
         uploaded_vid = st.file_uploader(
@@ -320,6 +389,41 @@ with tab_single:
                             f_img, caption=f"Fake Frame #{idx + 1}",
                             use_container_width=True
                         )
+
+            # SOTA Biometric (rPPG Pulse), C2PA, and Calibrated Fusion Expander
+            rppg_res = summary.get("biometric_rppg")
+            c2pa_vid = summary.get("c2pa_provenance")
+            vid_fusion = summary.get("calibrated_fusion")
+
+            with st.expander("🔬 SOTA Biometric (rPPG Pulse) & Provenance Intelligence", expanded=True):
+                if vid_fusion:
+                    st.markdown("#### ⚡ Calibrated Forensic Consensus & Uncertainty Bounds")
+                    vf_c1, vf_c2, vf_c3 = st.columns(3)
+                    vf_c1.metric("Calibrated P(Fake)", f"{vid_fusion['calibrated_p_fake'] * 100:.1f}%")
+                    vf_c2.metric("95% Confidence Interval", f"[{vid_fusion['ci_low']:.2f}, {vid_fusion['ci_high']:.2f}]")
+                    vf_c3.metric("Inter-Modal Contradiction", f"{vid_fusion['inter_expert_contradiction']:.2f}")
+
+                    v_fusion_fig = plot_fusion_bar(vid_fusion)
+                    if v_fusion_fig:
+                        st.plotly_chart(v_fusion_fig, use_container_width=True)
+
+                if rppg_res and rppg_res.get("is_valid"):
+                    st.markdown("#### 💓 Remote Photoplethysmography (rPPG) Hemodynamic Cardiac Coherence")
+                    rppg_fig = plot_rppg_wave(rppg_res)
+                    st.plotly_chart(rppg_fig, use_container_width=True)
+                    st.caption(
+                        f"**Biological Liveness Confidence:** `{rppg_res['liveness_confidence'] * 100:.1f}%` | "
+                        f"**Cross-Cheek Phase Coherence:** `{rppg_res['coherence_score']}` | "
+                        f"**Estimated Heart Rate:** `{rppg_res['estimated_bpm']} BPM` | "
+                        f"**Verdict:** `{rppg_res['verdict']}`"
+                    )
+
+                if c2pa_vid:
+                    st.markdown("#### 📜 C2PA Video Container Credentials")
+                    v_c2pa_badge = "🟢 VERIFIED C2PA CONTAINER" if c2pa_vid["c2pa_manifest_found"] else "⚪ STANDARD CONTAINER"
+                    if c2pa_vid.get("ai_provenance_detected"):
+                        v_c2pa_badge = "🔴 SYNTHETIC PROVENANCE ASSERTIONS"
+                    st.markdown(f"**Video Provenance Status:** `{v_c2pa_badge}` — *{c2pa_vid['verdict']}*")
 
     # ------------------ AUDIO SCANNER ------------------
     elif option == "Audio":
@@ -563,47 +667,182 @@ with tab_compare:
 # ==========================================
 with tab_lab:
     st.markdown(
-        '<div class="section-title">🔬 Explainable AI (XAI) Forensic Methods</div>',
+        '<div class="section-title">🔬 SOTA Deep Forensic Intelligence & Biometrics Laboratory</div>',
         unsafe_allow_html=True
     )
-
-    col_lab1, col_lab2 = st.columns(2)
-    with col_lab1:
-        st.markdown("""
-        ### 🔍 Error Level Analysis (ELA)
-        - **How it works**: Resaves an image at a known JPEG compression quality (e.g. 90%) and calculates the pixel delta relative to the original image.
-        - **Why it spots deepfakes**: Manipulated face regions undergo multi-stage re-compression, exhibiting higher contrast under ELA enhancement.
-        """)
-
-    with col_lab2:
-        st.markdown("""
-        ### ⚡ 2D Fast Fourier Transform (FFT)
-        - **How it works**: Converts spatial image intensities into the frequency domain to inspect the 2D magnitude spectrum.
-        - **Why it spots deepfakes**: Generative AI architectures (StyleGAN, Diffusion Models, Flux) leave distinct high-frequency periodic grid artifacts.
-        """)
-
-    st.markdown("---")
-    st.markdown("### 🧪 Interactive ELA & FFT Experiment Lab")
-    lab_img = st.file_uploader(
-        "Upload an image for standalone XAI experimentation",
-        type=["jpg", "png", "jpeg"],
-        key="lab_img"
+    st.markdown(
+        "Explore cutting-edge, state-of-the-art forensic methodologies addressing generative AI anomalies: "
+        "Azimuthal Radial Fourier Decay, Hemodynamic rPPG Pulse Coherence, Corneal Specular Highlights, and C2PA Provenance."
     )
 
-    if lab_img:
-        pil_lab_img = Image.open(lab_img)
-        quality_val = st.slider("JPEG Compression Quality (ELA)", 50, 98, 90)
-        scale_val = st.slider("ELA Brightness Scale Factor", 5, 30, 15)
+    lab_sub_rapsd, lab_sub_rppg, lab_sub_corneal, lab_sub_c2pa, lab_sub_ela = st.tabs([
+        "📐 Fourier RAPSD & 1/f^α Law",
+        "💓 Biometric rPPG Cardiac Coherence",
+        "👁️ Corneal Specular Reflection",
+        "📜 C2PA Provenance Manifest Auditor",
+        "🔍 Interactive ELA & 2D FFT Lab"
+    ])
 
-        ela_res = generate_ela_image(
-            pil_lab_img, quality=quality_val, scale=scale_val
+    # ------------------ SUB-TAB 1: RAPSD & 1/f^α LAW ------------------
+    with lab_sub_rapsd:
+        st.markdown("### 📐 Radially Averaged Power Spectral Distribution (RAPSD)")
+        st.caption(
+            "Natural camera photographs strictly adhere to the physical 1/f^α power-law Fourier decay. "
+            "Generative AI upsamplers (transposed convolutions, pixel-shufflers) induce distinct high-frequency periodic lattice spikes."
         )
-        fft_res = generate_fft_spectrum(pil_lab_img)
 
-        c1, c2, c3 = st.columns(3)
-        c1.image(pil_lab_img, caption="Original Input Image", use_container_width=True)
-        c2.image(ela_res, caption=f"Custom ELA (Q={quality_val}, S={scale_val})", use_container_width=True)
-        c3.image(fft_res, caption="2D FFT Magnitude Spectrum", use_container_width=True)
+        rapsd_upload = st.file_uploader("Upload Image for RAPSD Spectral Analysis", type=["jpg", "png", "jpeg"], key="rapsd_up")
+        if rapsd_upload:
+            img_r = Image.open(rapsd_upload)
+            with st.spinner("🔬 Computing 2D FFT and azimuthal radial integration..."):
+                r_metrics = compute_rapsd(img_r)
+                fft_preview = generate_fft_spectrum(img_r)
+
+            r_col1, r_col2 = st.columns([1, 2])
+            with r_col1:
+                st.image(fft_preview, caption="2D FFT Magnitude Spectrum", use_container_width=True)
+                st.markdown(f"**Diagnostic Verdict:** `{r_metrics['verdict']}`")
+                st.metric("Spectral Decay Slope (α)", f"{r_metrics['spectral_slope_alpha']}")
+                st.metric("High-Frequency Anomaly Energy", f"{r_metrics['high_freq_anomaly_energy']:.4f}")
+                st.metric("Periodic Spike Roughness", f"{r_metrics['spike_roughness']:.4f}")
+
+            with r_col2:
+                fig_rapsd = plot_rapsd_curve(r_metrics)
+                st.plotly_chart(fig_rapsd, use_container_width=True)
+
+    # ------------------ SUB-TAB 2: rPPG BIOMETRICS ------------------
+    with lab_sub_rppg:
+        st.markdown("### 💓 Remote Photoplethysmography (rPPG) Hemodynamic Coherence")
+        st.caption(
+            "Natural human faces display microscopic capillary blood pulsations synchronized across forehead and cheeks. "
+            "Deepfakes and neural avatars disrupt or desynchronize these physiological vascular phase rhythms."
+        )
+
+        rppg_vid = st.file_uploader("Upload Video Clip for Cardiac Pulse Extraction", type=["mp4", "mov", "avi"], key="rppg_up")
+        if rppg_vid:
+            with st.spinner("💓 Extracting facial vascular ROIs and running CHROM bandpass filtering..."):
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as t_vid:
+                    t_vid.write(rppg_vid.read())
+                    t_vid_path = t_vid.name
+
+                cap_t = cv2.VideoCapture(t_vid_path)
+                fps_t = cap_t.get(cv2.CAP_PROP_FPS) or 30.0
+                frames_t = []
+                while len(frames_t) < 90:
+                    ret, fr = cap_t.read()
+                    if not ret:
+                        break
+                    frames_t.append(cv2.cvtColor(fr, cv2.COLOR_BGR2RGB))
+                cap_t.release()
+
+                if os.path.exists(t_vid_path):
+                    os.remove(t_vid_path)
+
+                rppg_out = analyze_video_rppg(frames_t, fps=fps_t)
+
+            if rppg_out.get("is_valid"):
+                rppg_fig = plot_rppg_wave(rppg_out)
+                st.plotly_chart(rppg_fig, use_container_width=True)
+
+                rp_c1, rp_c2, rp_c3 = st.columns(3)
+                rp_c1.metric("Estimated Heart Rate", f"{rppg_out['estimated_bpm']} BPM")
+                rp_c2.metric("Cardiac Phase Coherence", f"{rppg_out['coherence_score'] * 100:.1f}%")
+                rp_c3.metric("Biological Liveness Confidence", f"{rppg_out['liveness_confidence'] * 100:.1f}%")
+
+                st.markdown(f"**Forensic Biometric Verdict:** `{rppg_out['verdict']}`")
+                st.json(rppg_out["regions_correlation"])
+            else:
+                st.warning(rppg_out.get("error", "Failed to compute rPPG signal."))
+
+    # ------------------ SUB-TAB 3: CORNEAL LIGHTING ------------------
+    with lab_sub_corneal:
+        st.markdown("### 👁️ Bi-Ocular Corneal Specular Reflection Consistency")
+        st.caption(
+            "Physical scene lighting must produce geometrically coherent reflection highlights relative to pupil centers in both eyes. "
+            "Generative AI portraits often generate divergent specular highlights and incompatible corneal light angles."
+        )
+
+        eye_upload = st.file_uploader("Upload Portrait Photo for Corneal Highlight Analysis", type=["jpg", "png", "jpeg"], key="eye_up")
+        if eye_upload:
+            img_eye = Image.open(eye_upload)
+            with st.spinner("👁️ Segmenting corneal highlights and calculating reflection vectors..."):
+                c_out = analyze_corneal_lighting(img_eye)
+
+            if c_out.get("is_valid"):
+                e_col1, e_col2 = st.columns(2)
+                with e_col1:
+                    st.image(c_out["left_eye_annotated"], caption="Left Eye Specular Highlight Centroid", use_container_width=True)
+                with e_col2:
+                    st.image(c_out["right_eye_annotated"], caption="Right Eye Specular Highlight Centroid", use_container_width=True)
+
+                ec_1, ec_2, ec_3 = st.columns(3)
+                ec_1.metric("Lighting Consistency Score", f"{c_out['consistency_score'] * 100:.1f}%")
+                ec_2.metric("Highlight Angular Disparity", f"{c_out['angle_disparity_deg']}°")
+                ec_3.metric("Left vs Right Peak Intensity", f"{c_out['left_peak_intensity']} / {c_out['right_peak_intensity']}")
+
+                st.markdown(f"**Geometric Optics Verdict:** `{c_out['verdict']}`")
+            else:
+                st.warning(c_out.get("error", "Could not localize eye regions."))
+
+    # ------------------ SUB-TAB 4: C2PA PROVENANCE AUDITOR ------------------
+    with lab_sub_c2pa:
+        st.markdown("### 📜 C2PA Content Credentials & Cryptographic Provenance Auditor")
+        st.caption(
+            "Inspect Coalition for Content Provenance and Authenticity (C2PA) JUMBF boxes, "
+            "cryptographic claims, digital certificates, and AI generator metadata signatures."
+        )
+
+        c2pa_file = st.file_uploader("Upload Any Media File (Image, Video, Audio)", key="c2pa_up")
+        if c2pa_file:
+            raw_c2pa_data = c2pa_file.read()
+            c2pa_file.seek(0)
+            with st.spinner("📜 Scanning byte superboxes for C2PA manifests and AI signatures..."):
+                c2pa_rep = audit_c2pa_provenance(raw_c2pa_data, c2pa_file.name)
+
+            p_col1, p_col2 = st.columns([1, 2])
+            with p_col1:
+                st.markdown(f"**Trust Classification:** `{c2pa_rep['trust_level']}`")
+                st.markdown(f"**Status Verdict:** *{c2pa_rep['verdict']}*")
+                st.metric("C2PA Boxes Found", c2pa_rep["c2pa_box_count"])
+                st.metric("Cryptographic Signature", "Present" if c2pa_rep["has_digital_signature"] else "None")
+
+            with p_col2:
+                if c2pa_rep["ai_generator_clues"]:
+                    st.error(f"🤖 **AI Generator Footprints Detected:** {', '.join(c2pa_rep['ai_generator_clues'])}")
+                else:
+                    st.success("✅ No known generative model signatures found in metadata.")
+
+                if c2pa_rep["actions_recorded"]:
+                    st.markdown("**Recorded Provenance Lineage Actions:**")
+                    for act in c2pa_rep["actions_recorded"]:
+                        st.markdown(f"- `{act}`")
+                else:
+                    st.caption("No certified C2PA edit actions recorded in container.")
+
+    # ------------------ SUB-TAB 5: CUSTOM ELA & FFT ------------------
+    with lab_sub_ela:
+        st.markdown("### 🔍 Custom Error Level Analysis (ELA) & 2D FFT Experimentation")
+        st.caption("Fine-tune JPEG recompression quality and ELA scaling to isolate multi-stage compression tampering.")
+
+        lab_img = st.file_uploader(
+            "Upload an image for ELA/FFT parameter tuning",
+            type=["jpg", "png", "jpeg"],
+            key="lab_img"
+        )
+        if lab_img:
+            pil_lab_img = Image.open(lab_img)
+            quality_val = st.slider("JPEG Compression Quality (ELA)", 50, 98, 90)
+            scale_val = st.slider("ELA Brightness Scale Factor", 5, 30, 15)
+
+            ela_res = generate_ela_image(
+                pil_lab_img, quality=quality_val, scale=scale_val
+            )
+            fft_res = generate_fft_spectrum(pil_lab_img)
+
+            c1, c2, c3 = st.columns(3)
+            c1.image(pil_lab_img, caption="Original Input Image", use_container_width=True)
+            c2.image(ela_res, caption=f"Custom ELA (Q={quality_val}, S={scale_val})", use_container_width=True)
+            c3.image(fft_res, caption="2D FFT Magnitude Spectrum", use_container_width=True)
 
 # ==========================================
 # TAB 6: FORENSIC REPORT GENERATOR

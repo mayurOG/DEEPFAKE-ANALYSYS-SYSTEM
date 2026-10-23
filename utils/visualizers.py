@@ -148,3 +148,103 @@ def generate_mel_spectrogram(audio_source) -> Image.Image:
         buf.seek(0)
         plt.close(fig)
         return Image.open(buf)
+
+
+def plot_rapsd_curve(rapsd_metrics: dict):
+    """
+    Renders an interactive Plotly dual-line curve of the Radially Averaged
+    Power Spectral Distribution comparing input vs. natural 1/f^alpha baseline.
+    """
+    import plotly.graph_objects as go
+
+    radii = rapsd_metrics.get("radii", [])
+    observed = rapsd_metrics.get("observed_energy", [])
+    natural = rapsd_metrics.get("natural_baseline", [])
+
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=radii, y=observed,
+        mode="lines",
+        name="Observed Spectrum",
+        line=dict(color="#38bdf8", width=2.5)
+    ))
+    fig.add_trace(go.Scatter(
+        x=radii, y=natural,
+        mode="lines",
+        name="Natural 1/f^alpha Baseline",
+        line=dict(color="#f43f5e", width=2, dash="dash")
+    ))
+    fig.update_layout(
+        title="Radially Averaged Power Spectral Distribution (RAPSD)",
+        xaxis_title="Radial Spatial Frequency (r)",
+        yaxis_title="Normalized Log Power",
+        paper_bgcolor="rgba(15,23,42,0.8)",
+        plot_bgcolor="rgba(15,23,42,0.8)",
+        font=dict(color="#e2e8f0"),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        margin=dict(l=40, r=40, t=50, b=40)
+    )
+    return fig
+
+
+def plot_rppg_wave(rppg_metrics: dict):
+    """
+    Renders an interactive Plotly line chart of the blood volume pulse (BVP) wave.
+    """
+    import plotly.graph_objects as go
+
+    timestamps = rppg_metrics.get("timestamps", [])
+    pulse_wave = rppg_metrics.get("pulse_wave", [])
+    bpm = rppg_metrics.get("estimated_bpm", 0)
+    coherence = rppg_metrics.get("coherence_score", 0)
+
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=timestamps, y=pulse_wave,
+        mode="lines",
+        name="Hemodynamic BVP Pulse Wave",
+        line=dict(color="#ec4899", width=2.5)
+    ))
+    fig.update_layout(
+        title=f"Remote Photoplethysmography (rPPG) Pulse Wave | Est. HR: {bpm} BPM | Coherence: {coherence:.2f}",
+        xaxis_title="Time (Seconds)",
+        yaxis_title="Normalized Blood Volume Pulse",
+        paper_bgcolor="rgba(15,23,42,0.8)",
+        plot_bgcolor="rgba(15,23,42,0.8)",
+        font=dict(color="#e2e8f0"),
+        margin=dict(l=40, r=40, t=50, b=40)
+    )
+    return fig
+
+
+def plot_fusion_bar(fusion_metrics: dict):
+    """
+    Renders an interactive Plotly bar chart comparing evidence across modalities.
+    """
+    import plotly.graph_objects as go
+
+    vectors = fusion_metrics.get("evidence_vectors", [])
+    if not vectors:
+        return None
+    modalities = [v["modality"] for v in vectors]
+    scores = [v["p_fake"] for v in vectors]
+    colors = ["#ef4444" if s >= 0.55 else ("#22c55e" if s <= 0.45 else "#eab308") for s in scores]
+
+    fig = go.Figure()
+    fig.add_trace(go.Bar(
+        x=modalities, y=scores,
+        marker_color=colors,
+        text=[f"{s*100:.1f}%" for s in scores],
+        textposition="auto"
+    ))
+    fig.add_hline(y=0.5, line_dash="dash", line_color="#94a3b8")
+    fig.update_layout(
+        title="Multi-Modal Forensic Consensus & Modality Fake Probability",
+        yaxis_title="Synthetic Probability P(Fake)",
+        yaxis=dict(range=[0, 1.05]),
+        paper_bgcolor="rgba(15,23,42,0.8)",
+        plot_bgcolor="rgba(15,23,42,0.8)",
+        font=dict(color="#e2e8f0"),
+        margin=dict(l=40, r=40, t=50, b=40)
+    )
+    return fig

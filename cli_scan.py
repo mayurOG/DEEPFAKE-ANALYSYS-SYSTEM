@@ -51,6 +51,12 @@ def main():
             "Fake Probability": f"{raw_details['fake_probability'] * 100:.1f}%",
             "Threshold Used": f"{args.threshold:.2f}"
         }
+        if raw_details.get("rapsd_metrics"):
+            metrics["RAPSD Spectral Verdict"] = raw_details["rapsd_metrics"]["verdict"]
+        if raw_details.get("c2pa_provenance"):
+            metrics["C2PA Provenance Trust"] = raw_details["c2pa_provenance"]["trust_level"]
+        if raw_details.get("corneal_metrics") and raw_details["corneal_metrics"].get("is_valid"):
+            metrics["Corneal Lighting Verdict"] = raw_details["corneal_metrics"]["verdict"]
 
     elif ext in ["mp4", "avi", "mov"]:
         v_res = detect_video(file_path)
@@ -58,7 +64,17 @@ def main():
         conf_str = summary["fake_percentage"]
         metadata = {"video_fps": summary.get("video_fps", "30.0")}
         media_type = "Video"
-        metrics = summary
+        metrics = {
+            "total_analyzed_frames": summary["total_analyzed_frames"],
+            "real_frames": summary["real_frames"],
+            "fake_frames": summary["fake_frames"],
+            "fake_percentage": summary["fake_percentage"],
+        }
+        if summary.get("biometric_rppg") and summary["biometric_rppg"].get("is_valid"):
+            metrics["rPPG Biological Liveness"] = summary["biometric_rppg"]["verdict"]
+            metrics["Estimated Heart Rate"] = f"{summary['biometric_rppg']['estimated_bpm']} BPM"
+        if summary.get("c2pa_provenance"):
+            metrics["C2PA Container Trust"] = summary["c2pa_provenance"]["trust_level"]
 
     elif ext in ["wav", "mp3", "flac"]:
         verdict, conf_str, segment_preds, _, _ = detect_audio(file_path)
@@ -75,6 +91,9 @@ def main():
     print("\n==========================================")
     print(f"  VERDICT: {verdict.upper()}")
     print(f"  CONFIDENCE: {conf_str}")
+    for k, v in metrics.items():
+        if k not in ["total_analyzed_frames", "real_frames", "fake_frames"]:
+            print(f"  • {k}: {v}")
     print("==========================================\n")
 
     # Generate Reports

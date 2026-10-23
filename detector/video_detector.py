@@ -102,13 +102,23 @@ def detect_video(video_file, frame_skip=15):
     verdict = "Fake" if fake_count >= 2 else "Real"
     fake_pct = (fake_count / total_analyzed * 100) if total_analyzed > 0 else 0.0
 
-    summary = {
-        "total_analyzed_frames": total_analyzed,
-        "real_frames": real_count,
-        "fake_frames": fake_count,
-        "fake_percentage": f"{fake_pct:.1f}%",
-        "video_fps": f"{fps:.1f}"
-    }
+    # 1. Novelty: Biometric Remote Photoplethysmography (rPPG) Pulse Coherence
+    biometric_rppg_res = None
+    try:
+        from detector.biometric_rppg import analyze_video_rppg
+        biometric_rppg_res = analyze_video_rppg(annotated_frames, fps=fps)
+    except Exception:
+        biometric_rppg_res = None
+
+    # 2. Novelty: C2PA Video Container Provenance
+    c2pa_res = None
+    try:
+        from detector.c2pa_provenance import audit_c2pa_provenance
+        if os.path.exists(temp_path):
+            v_bytes = open(temp_path, "rb").read(500000)
+            c2pa_res = audit_c2pa_provenance(v_bytes)
+    except Exception:
+        c2pa_res = None
 
     # Attempt audio track analysis from video file
     audio_analysis = None
@@ -117,6 +127,38 @@ def detect_video(video_file, frame_skip=15):
         audio_analysis = detect_audio(temp_path)
     except Exception:
         audio_analysis = None
+
+    # 3. Novelty: Calibrated Multi-Modal Evidence Fusion
+    calibrated_fusion_res = None
+    try:
+        from detector.calibrated_fusion import CalibratedForensicFusion
+        aud_fake_p = None
+        if audio_analysis:
+            a_verdict = audio_analysis[0]
+            a_conf = float(audio_analysis[1])
+            aud_fake_p = a_conf if a_verdict == "Fake" else (1.0 - a_conf)
+
+        rppg_liveness = biometric_rppg_res.get("liveness_confidence") if biometric_rppg_res and biometric_rppg_res.get("is_valid") else None
+
+        calibrated_fusion_res = CalibratedForensicFusion.fuse_evidence(
+            neural_visual_fake_p=(fake_pct / 100.0),
+            neural_audio_fake_p=aud_fake_p,
+            biometric_liveness_score=rppg_liveness,
+            c2pa_result=c2pa_res,
+        )
+    except Exception:
+        calibrated_fusion_res = None
+
+    summary = {
+        "total_analyzed_frames": total_analyzed,
+        "real_frames": real_count,
+        "fake_frames": fake_count,
+        "fake_percentage": f"{fake_pct:.1f}%",
+        "video_fps": f"{fps:.1f}",
+        "biometric_rppg": biometric_rppg_res,
+        "c2pa_provenance": c2pa_res,
+        "calibrated_fusion": calibrated_fusion_res,
+    }
 
     # Clean up temp file
     if os.path.exists(temp_path):

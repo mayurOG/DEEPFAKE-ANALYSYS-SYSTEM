@@ -95,13 +95,71 @@ def detect_image(input_img, fake_threshold=0.5):
     fft_img = generate_fft_spectrum(img)
     quality_metrics = analyze_image_quality_and_noise(img)
 
+    # 1. Novelty: Radially Averaged Power Spectral Distribution (RAPSD) & 1/f^alpha law
+    try:
+        from detector.spectral_rapsd import compute_rapsd
+        rapsd_metrics = compute_rapsd(img)
+    except Exception:
+        rapsd_metrics = None
+
+    # 2. Novelty: Bi-Ocular Corneal Specular Reflection & Light Geometry
+    try:
+        from detector.corneal_lighting import analyze_corneal_lighting
+        corneal_metrics = analyze_corneal_lighting(faces[0] if faces else img)
+    except Exception:
+        corneal_metrics = None
+
+    # 3. Novelty: Micro-vascular Hemodynamic Diffusion
+    try:
+        from detector.biometric_rppg import analyze_static_face_micro_vasculature
+        vascular_metrics = analyze_static_face_micro_vasculature(faces[0] if faces else img)
+    except Exception:
+        vascular_metrics = None
+
+    # 4. Novelty: C2PA Content Credentials & Cryptographic Provenance
+    try:
+        from detector.c2pa_provenance import audit_c2pa_provenance
+        raw_bytes = None
+        if isinstance(input_img, str) and os.path.exists(input_img):
+            raw_bytes = open(input_img, "rb").read(500000)
+        elif hasattr(input_img, "read"):
+            input_img.seek(0)
+            raw_bytes = input_img.read(500000)
+            input_img.seek(0)
+        elif isinstance(input_img, Image.Image):
+            import io
+            buf = io.BytesIO()
+            input_img.save(buf, format="PNG")
+            raw_bytes = buf.getvalue()
+
+        c2pa_metrics = audit_c2pa_provenance(raw_bytes) if raw_bytes else None
+    except Exception:
+        c2pa_metrics = None
+
+    # 5. Novelty: Multi-Modal Calibrated Forensic Fusion
+    try:
+        from detector.calibrated_fusion import CalibratedForensicFusion
+        fusion_report = CalibratedForensicFusion.fuse_evidence(
+            neural_visual_fake_p=avg_fake_prob,
+            spectral_rapsd_risk=rapsd_metrics.get("spectral_risk_score") if rapsd_metrics else None,
+            corneal_disparity_score=1.0 - (corneal_metrics.get("consistency_score", 0.5)) if (corneal_metrics and corneal_metrics.get("is_valid")) else None,
+            c2pa_result=c2pa_metrics,
+        )
+    except Exception:
+        fusion_report = None
+
     raw_details = {
         "fake_probability": avg_fake_prob,
         "real_probability": avg_real_prob,
         "primary_confidence": primary_conf,
         "face_count": face_count,
         "threshold_used": fake_threshold,
-        "quality_metrics": quality_metrics
+        "quality_metrics": quality_metrics,
+        "rapsd_metrics": rapsd_metrics,
+        "corneal_metrics": corneal_metrics,
+        "vascular_metrics": vascular_metrics,
+        "c2pa_provenance": c2pa_metrics,
+        "calibrated_fusion": fusion_report,
     }
 
     return (
