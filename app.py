@@ -1,3 +1,6 @@
+import os
+os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
+
 import streamlit as st
 import streamlit.components.v1 as components
 import pandas as pd
@@ -5,7 +8,12 @@ import plotly.express as px
 from PIL import Image
 import tempfile
 import base64
-import os
+
+import importlib
+import detector.audio_detector
+import utils.visualizers
+importlib.reload(detector.audio_detector)
+importlib.reload(utils.visualizers)
 
 from detector.image_detector import detect_image
 from detector.video_detector import detect_video
@@ -323,10 +331,17 @@ with tab_single:
 
         if uploaded_aud:
             st.markdown("---")
-            st.audio(uploaded_aud, format="audio/wav")
+            aud_bytes = uploaded_aud.read()
+            uploaded_aud.seek(0)
 
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp:
-                tmp.write(uploaded_aud.read())
+            orig_name = uploaded_aud.name
+            _, ext = os.path.splitext(orig_name)
+            ext = ext.lower() if ext else ".wav"
+            mime_type = "audio/mp3" if ext == ".mp3" else ("audio/flac" if ext == ".flac" else "audio/wav")
+            st.audio(aud_bytes, format=mime_type)
+
+            with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp:
+                tmp.write(aud_bytes)
                 tmp_path = tmp.name
 
             with st.spinner("🎵 Running Acoustic Voice Classifier..."):
@@ -476,9 +491,11 @@ with tab_batch:
                         "Fake Probability": f"{raw_details['fake_probability'] * 100:.1f}%",
                         "Faces Found": face_count
                     })
-                elif ext in ["wav", "mp3"]:
+                elif ext in ["wav", "mp3", "flac"]:
+                    b_bytes = b_file.read()
+                    b_file.seek(0)
                     with tempfile.NamedTemporaryFile(delete=False, suffix=f".{ext}") as tmp:
-                        tmp.write(b_file.read())
+                        tmp.write(b_bytes)
                         tmp_path = tmp.name
                     verdict, conf_str, segs, _, _ = detect_audio(tmp_path)
                     fake_p_calc = (

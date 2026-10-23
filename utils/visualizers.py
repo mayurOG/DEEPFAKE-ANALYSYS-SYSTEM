@@ -72,29 +72,51 @@ def generate_fft_spectrum(image: Image.Image) -> Image.Image:
     return Image.open(buf)
 
 
-def generate_mel_spectrogram(audio_path: str) -> Image.Image:
+def generate_mel_spectrogram(audio_source) -> Image.Image:
     """
-    Generates a Mel-Spectrogram visualization for an audio file.
+    Generates a Mel-Spectrogram visualization for an audio file or waveform.
     """
     try:
-        waveform, sr = torchaudio.load(audio_path)
-        if waveform.shape[0] > 1:
-            waveform = torch.mean(waveform, dim=0, keepdim=True)
+        from utils.audio_utils import load_audio
 
-        mel_transform = torchaudio.transforms.MelSpectrogram(
-            sample_rate=sr, n_fft=1024, hop_length=512, n_mels=64
-        )
-        mel_spec = mel_transform(waveform)
-        mel_spec_db = torchaudio.transforms.AmplitudeToDB()(
-            mel_spec
-        ).squeeze().numpy()
+        if isinstance(audio_source, tuple) and len(audio_source) == 2:
+            waveform, sr = audio_source
+        elif isinstance(audio_source, torch.Tensor):
+            waveform = audio_source
+            sr = 16000
+        else:
+            waveform, sr = load_audio(audio_source)
+
+        if isinstance(waveform, np.ndarray):
+            waveform = torch.from_numpy(waveform)
+
+        if waveform.ndim > 1 and waveform.shape[0] > 1:
+            waveform = torch.mean(waveform, dim=0, keepdim=True)
+        elif waveform.ndim == 1:
+            waveform = waveform.unsqueeze(0)
+
+        # Try MelSpectrogram via torchaudio
+        try:
+            mel_transform = torchaudio.transforms.MelSpectrogram(
+                sample_rate=sr, n_fft=1024, hop_length=512, n_mels=64
+            )
+            mel_spec = mel_transform(waveform)
+            mel_spec_db = torchaudio.transforms.AmplitudeToDB()(
+                mel_spec
+            ).squeeze().cpu().numpy()
+        except Exception:
+            # Fallback using scipy spectrogram
+            import scipy.signal
+            audio_1d = waveform.squeeze().cpu().numpy()
+            _, _, Sxx = scipy.signal.spectrogram(audio_1d, fs=sr, nperseg=1024, noverlap=512)
+            mel_spec_db = 10 * np.log10(np.maximum(Sxx, 1e-10))
 
         fig, ax = plt.subplots(figsize=(10, 3.5))
         im = ax.imshow(
             mel_spec_db, origin='lower', aspect='auto', cmap='magma'
         )
         ax.set_title(
-            "🎵 Mel-Frequency Spectrogram (Acoustic Forensic Analysis)",
+            "Mel-Frequency Spectrogram (Acoustic Forensic Analysis)",
             color='white', fontsize=12, pad=10
         )
         ax.set_xlabel("Time Frames", color='#aaaaaa')
